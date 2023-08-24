@@ -4,7 +4,7 @@ Learning Transformer following Attention is All You Need
 
 ## Environment
 
-I use `miniconda` to manage my environments.
+I use `miniconda` to manage my environments. Note: my default channel is `conda-forge`.
 
 ```bash
 # create virtual environment
@@ -14,11 +14,14 @@ conda activate learn-transformer
 conda install pytorch::pytorch torchvision torchaudio -c pytorch -y
 # install jupyter
 conda install jupyter -y
-```
-
-Note: my default channel is `conda-forge`.
-
-```bash
+# install tokenizer
+pip install tokenizers
 # install HuggingFace datasets
 pip install datasets
 ```
+
+## Dataset
+
+Using [WMT 2014 English-German dataset](https://huggingface.co/datasets/wmt14).
+
+By default, the dataset is downloaded at `~/.cache/huggingface/datasets/`.
