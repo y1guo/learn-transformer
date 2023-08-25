@@ -12,12 +12,12 @@ conda create -n learn-transformer python=3.10 -y
 conda activate learn-transformer
 # install pytorch
 conda install pytorch::pytorch torchvision torchaudio -c pytorch -y
-# install jupyter
-conda install jupyter -y
 # install tokenizer
 pip install tokenizers
 # install HuggingFace datasets
 pip install datasets
+# install dev tools
+conda install jupyter matplotlib -y
 ```
 
 ## Dataset
