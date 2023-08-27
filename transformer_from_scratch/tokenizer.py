@@ -7,11 +7,7 @@ from datasets import load_dataset, disable_caching
 
 def batch_iterator(dataset, batch_size=1000):
     for i in range(0, len(dataset), batch_size):
-        yield [
-            _
-            for sample in dataset[i : i + batch_size]["translation"]
-            for _ in sample.values()
-        ]
+        yield [_ for sample in dataset[i : i + batch_size]["translation"] for _ in sample.values()]
 
 
 def get_tokenizer(name: str, language: str, vocab_size: int):

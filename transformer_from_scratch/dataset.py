@@ -36,20 +36,16 @@ class Dataset:
             if isinstance(dataset, ArrowDataset):
                 self.dataset[split] = dataset
             else:
-                raise TypeError(
-                    f"Dataset {name}/{split} is not of type datasets.arrow_dataset.Dataset"
-                )
+                raise TypeError(f"Dataset {name}/{split} is not of type datasets.arrow_dataset.Dataset")
         self.languages = language.split("-")
 
     def tokenize(self, tokenizer: Tokenizer):
         def encode(example):
             tokenized_example = {}
             for lg, name in zip(self.languages, ["src", "tgt"]):
-                enc = tokenizer.encode("[CLS]" + example["translation"][lg] + "[SEP]")
+                enc = tokenizer.encode(f"[CLS] {example['translation'][lg]} [SEP]")
                 tokenized_example[name] = enc.ids
-                tokenized_example[name + "_mask"] = (
-                    torch.tensor(enc.attention_mask) == 0
-                )
+                tokenized_example[name + "_mask"] = torch.tensor(enc.attention_mask) == 0
                 tokenized_example[name + "_len"] = len(enc.ids)
             return tokenized_example
 
@@ -87,9 +83,7 @@ class Dataset:
         """
 
         # Filter sequences by length
-        dataset = self.dataset[split].filter(
-            lambda e: min_len <= max(len(e["src"]), len(e["tgt"])) <= max_len
-        )
+        dataset = self.dataset[split].filter(lambda e: min_len <= max(len(e["src"]), len(e["tgt"])) <= max_len)
 
         # Pad sequences
         # def pad(example):
@@ -114,7 +108,5 @@ class Dataset:
         dataset = dataset.map(pad, num_proc=NUM_PROC)
         # Create DataLoader
         dataset.set_format(type="torch", columns=["src", "tgt", "src_mask", "tgt_mask"])
-        dataloader = DataLoader(
-            cast(TorchDataset, dataset), batch_size=batch_size, shuffle=shuffle
-        )
+        dataloader = DataLoader(cast(TorchDataset, dataset), batch_size=batch_size, shuffle=shuffle)
         return dataloader

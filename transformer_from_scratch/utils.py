@@ -3,13 +3,7 @@ from datetime import datetime
 
 
 NUM_PROC = os.cpu_count()
-DEVICE = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()  # type: ignore
-    else "cpu"
-)
+DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"  # type: ignore
 
 
 def free_memory(*args: str):
@@ -50,9 +44,7 @@ def log(message: str, file: str | None = None):
     print(message)
     if file:
         with open(file, "a") as f:
-            f.write(
-                f"{datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')}: {message}\n"
-            )
+            f.write(f"{datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')}: {message}\n")
 
 
 def sec2hms(seconds: float) -> str:

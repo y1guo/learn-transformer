@@ -6,18 +6,29 @@ from utils import DEVICE
 MAX_SEQ_LEN = 128  # need fix
 
 
-def pos_encoding(seq_len: int, d_model: int):
-    pos = torch.arange(0, seq_len)[None, :, None]
-    idx = torch.arange(0, d_model)[None, None, :]
-    wavlen = 10000 ** (idx / d_model)
-    return torch.sin(pos / wavlen) * (1 - idx % 2) + torch.cos(pos / wavlen) * (idx % 2)
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+        pos = torch.arange(MAX_SEQ_LEN)[None, :, None]
+        idx = torch.arange(0, d_model, 2)[None, None, :]
+        wavlen = 10000 ** (idx / d_model)
+        pos_encoding = torch.zeros(1, MAX_SEQ_LEN, d_model)
+        pos_encoding[:, :, 0::2] = torch.sin(pos / wavlen)
+        pos_encoding[:, :, 1::2] = torch.cos(pos / wavlen)
+        self.pos_encoding = pos_encoding.to(DEVICE)
+
+    def forward(self, x: torch.Tensor):
+        # x: (batch_size, seq_len, d_model)
+        x = x + self.pos_encoding[:, : x.size(1), :]
+        return self.dropout(x)
+        # Question: There's no weights to learn in this layer, so why dropout?
 
 
 class InverseEmbedding(nn.Module):
     def __init__(self, embedding: nn.Embedding):
         super().__init__()
         self.embedding = embedding
-        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x: torch.Tensor):
         # x: (batch_size, seq_len, d_model)
@@ -33,6 +44,7 @@ class TransformerModel(nn.Module):
         num_encoder_layers: int = 6,
         num_decoder_layers: int = 6,
         dim_feedforward: int = 2048,
+        dropout: float = 0.1,
     ):
         super().__init__()
         # hyperparameters
@@ -41,11 +53,13 @@ class TransformerModel(nn.Module):
         self.num_encoder_layers = num_encoder_layers
         self.num_decoder_layers = num_decoder_layers
         self.dim_feedforward = dim_feedforward
+        self.dropout = dropout
         # embedding layer
         self.embedding = nn.Embedding(vocab_size, d_model)
-        self.inverse_embedding = InverseEmbedding(self.embedding)
-        # positional encoding
-        self.pos_encoding = pos_encoding(MAX_SEQ_LEN, d_model).to(DEVICE)
+        # self.inverse_embedding = InverseEmbedding(self.embedding)
+        self.inverse_embedding = nn.Linear(d_model, vocab_size)
+        # positional encoding layer
+        self.positional_encoding = PositionalEncoding(d_model, dropout)
         # transformer layers
         self.transformer = nn.Transformer(
             d_model=d_model,
@@ -53,39 +67,32 @@ class TransformerModel(nn.Module):
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_feedforward,
-            dropout=0,
+            dropout=dropout,
             batch_first=True,
         )
-        self.tgt_mask = torch.triu(
-            torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), True), diagonal=1
-        ).to(DEVICE)
+        self.tgt_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), True), diagonal=1).to(DEVICE)
 
     def forward(
         self,
-        x: torch.Tensor,
-        x_mask: torch.Tensor,
-        y: torch.Tensor,
-        y_mask: torch.Tensor,
+        src: torch.Tensor,
+        src_mask: torch.Tensor,
+        tgt: torch.Tensor,
+        tgt_mask: torch.Tensor,
     ):
-        # x, y: (batch_size, seq_len)
-        x = (
-            self.embedding(x) * torch.tensor(self.d_model).to(DEVICE) ** 0.5
-            + self.pos_encoding
-        )
-        y = (
-            self.embedding(y) * torch.tensor(self.d_model).to(DEVICE) ** 0.5
-            + self.pos_encoding
-        )
-        # x, y: (batch_size, seq_len, d_model), x_mask, y_mask: (batch_size, seq_len)
-        output = self.transformer(
-            x,
-            y,
-            src_key_padding_mask=x_mask,
-            tgt_key_padding_mask=y_mask,
-            memory_key_padding_mask=x_mask,
+        # src, tgt: (batch_size, seq_len)
+        sqrt_d_model = torch.tensor(self.d_model**0.5).to(DEVICE)
+        src = self.positional_encoding(self.embedding(src) * sqrt_d_model)
+        tgt = self.positional_encoding(self.embedding(tgt) * sqrt_d_model)
+        # src, tgt: (batch_size, seq_len, d_model), src_mask, tgt_mask: (batch_size, seq_len)
+        out = self.transformer(
+            src,
+            tgt,
+            # src_key_padding_mask=src_mask,
+            # tgt_key_padding_mask=tgt_mask,
+            # memory_key_padding_mask=tgt_mask,
             tgt_mask=self.tgt_mask,
         )
-        # output: (batch_size, seq_len, d_model)
-        output = self.inverse_embedding(output)
-        # output: (batch_size, seq_len, vocab_size)
-        return output
+        # out: (batch_size, seq_len, d_model)
+        out = self.inverse_embedding(out)
+        # out: (batch_size, seq_len, vocab_size)
+        return out

@@ -38,9 +38,7 @@ class Transformer:
 
             # Compute prediction error
             optimizer.zero_grad()
-            pred = model(x, x_mask, y, y_mask)[
-                :, :-1, :
-            ]  # (batch_size, seq_len, vocab_size)
+            pred = model(x, x_mask, y, y_mask)[:, :-1, :]  # (batch_size, seq_len, vocab_size)
             label = y[:, 1:]  # (batch_size, seq_len)
             label_mask = y_mask[:, 1:] == False  # (batch_size, seq_len)
             loss = loss_fn(pred[label_mask], label[label_mask])
@@ -52,9 +50,7 @@ class Transformer:
 
             if i_batch % 100 == 0:
                 loss, current = loss.item(), (i_batch + 1) * len(x)
-                correct = (pred.argmax(-1) == label)[
-                    label_mask
-                ].float().sum().item() / label[label_mask].numel()
+                correct = (pred.argmax(-1) == label)[label_mask].float().sum().item() / label[label_mask].numel()
                 elapsed_time = time.perf_counter() - start_time
                 remaining_time = elapsed_time * (size - current) / current
                 log(
@@ -100,26 +96,18 @@ class Transformer:
         log("Done!", "train.log")
 
     def predict(self, source: str, target: str):
-        enc = self.tokenizer.encode("[CLS]" + source + "[SEP]")
+        enc = self.tokenizer.encode(f"[CLS] {source} [SEP]")
         src = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        src_mask = (
-            torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0
-        )  # (batch_size, seq_len)
-        enc = self.tokenizer.encode("[CLS]" + target + "[SEP]")
+        src_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0  # (batch_size, seq_len)
+        enc = self.tokenizer.encode(f"[CLS] {target} [SEP]")
         tgt = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        tgt_mask = (
-            torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0
-        )  # (batch_size, seq_len)
+        tgt_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0  # (batch_size, seq_len)
         with torch.no_grad():
-            pred = self.model(
-                src, src_mask, tgt, tgt_mask
-            )  # (batch_size, seq_len, vocab_size)
+            pred = self.model(src, src_mask, tgt, tgt_mask)  # (batch_size, seq_len, vocab_size)
             pred_tokens = pred[0, :-1, :].argmax(-1)  # (seq_len)
             label_tokens = tgt[0, 1:]  # (seq_len)
             label_mask = tgt_mask[0, 1:] == False  # (seq_len)
-            correct = (pred_tokens == label_tokens)[
-                label_mask
-            ].float().sum().item() / label_tokens[label_mask].numel()
+            correct = (pred_tokens == label_tokens)[label_mask].float().sum().item() / label_tokens[label_mask].numel()
             print(f"Accuracy: {100*correct:>0.1f}%")
             for i in range(len(label_tokens)):
                 if label_tokens[i] == self.tokenizer.token_to_id("[SEP]"):
@@ -133,22 +121,14 @@ class Transformer:
                 print(f"{history}{color}{predict}{Fore.RESET}")
 
     def translate(self, source: str):
-        enc = self.tokenizer.encode("[CLS]" + source + "[SEP]")
+        enc = self.tokenizer.encode(f"[CLS] {source} [SEP]")
         src = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        src_mask = (
-            torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0
-        )  # (batch_size, seq_len)
-        tgt = torch.full((1, MAX_SEQ_LEN), self.tokenizer.token_to_id("[CLS]")).to(
-            DEVICE
-        )  # (batch_size, seq_len)
-        tgt_mask = torch.triu(
-            torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), True), diagonal=1
-        ).to(DEVICE)
+        src_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE) == 0  # (batch_size, seq_len)
+        tgt = torch.full((1, MAX_SEQ_LEN), self.tokenizer.token_to_id("[CLS]")).to(DEVICE)  # (batch_size, seq_len)
+        tgt_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), True), diagonal=1).to(DEVICE)
         with torch.no_grad():
             for i in range(MAX_SEQ_LEN - 1):
-                pred = self.model(
-                    src, src_mask, tgt, tgt_mask[i : i + 1, :]
-                )  # (batch_size, seq_len, vocab_size)
+                pred = self.model(src, src_mask, tgt, tgt_mask[i : i + 1, :])  # (batch_size, seq_len, vocab_size)
                 pred_token = pred.argmax(-1)[0, i]
                 tgt[0, i + 1] = pred_token
                 if pred_token == self.tokenizer.token_to_id("[SEP]"):
