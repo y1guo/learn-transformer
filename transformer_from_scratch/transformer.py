@@ -40,7 +40,7 @@ class Transformer:
             optimizer.zero_grad()
             pred = model(x, x_mask, y, y_mask)[:, :-1, :]  # (batch_size, seq_len, vocab_size)
             label = y[:, 1:]  # (batch_size, seq_len)
-            label_mask = y_mask[:, 1:] == False  # (batch_size, seq_len)
+            label_mask = y_mask[:, 1:] == 1  # (batch_size, seq_len)
             loss = loss_fn(pred[label_mask], label[label_mask])
 
             # Optimization
@@ -75,7 +75,7 @@ class Transformer:
                 )
                 pred = model(x, x_mask, y, y_mask)[:, :-1, :]
                 label = y[:, 1:]
-                label_mask = y_mask[:, 1:] == False
+                label_mask = y_mask[:, 1:] == 1
                 validation_loss += loss_fn(pred[label_mask], label[label_mask]).item()
                 correct += (pred.argmax(-1) == label)[label_mask].float().sum().item()
                 total += label[label_mask].numel()

@@ -45,7 +45,7 @@ class Dataset:
             for lg, name in zip(self.languages, ["src", "tgt"]):
                 enc = tokenizer.encode(f"[CLS] {example['translation'][lg]} [SEP]")
                 tokenized_example[name] = enc.ids
-                tokenized_example[name + "_mask"] = torch.tensor(enc.attention_mask) == 0
+                tokenized_example[name + "_mask"] = enc.attention_mask
                 tokenized_example[name + "_len"] = len(enc.ids)
             return tokenized_example
 
@@ -90,7 +90,7 @@ class Dataset:
             for name in ["src", "tgt"]:
                 pad_len = max_len - len(example[name])
                 example[name] += [self.tokenizer.token_to_id("[PAD]")] * pad_len
-                example[name + "_mask"] += [True] * pad_len
+                example[name + "_mask"] += [0] * pad_len
             return example
 
         dataset = dataset.map(pad, num_proc=NUM_PROC)

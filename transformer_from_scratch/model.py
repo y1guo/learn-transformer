@@ -63,7 +63,7 @@ class MultiHeadAttention(nn.Module):
         self.k_linear = nn.Linear(d_model, d_model)
         self.v_linear = nn.Linear(d_model, d_model)
         self.linear = nn.Linear(d_model, d_model)
-        self.casal_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), -1e6), diagonal=1).to(DEVICE)
+        self.casal_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), float("-inf")), diagonal=1).to(DEVICE)
 
     def forward(
         self,
@@ -98,7 +98,7 @@ class MultiHeadAttention(nn.Module):
         # the order of masking is crucial, do not change
         if causal_mask:
             attention = attention + self.casal_mask[: attention.shape[-2], : attention.shape[-1]]
-        attention = attention.masked_fill(k_mask[:, None, None, :] == 0, -1e6)
+        attention = attention.masked_fill(k_mask[:, None, None, :] == 0, float("-inf"))
         attention = torch.softmax(attention, dim=-1)  # (batch_size, nhead, q_seq_len, k_seq_len)
         attention = attention.masked_fill(q_mask[:, None, :, None] == 0, 0)
         out = attention @ v  # (batch_size, nhead, q_seq_len, d_k)
