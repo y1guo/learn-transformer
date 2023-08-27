@@ -39,14 +39,14 @@ class Dataset:
                 raise TypeError(f"Dataset {name}/{split} is not of type datasets.arrow_dataset.Dataset")
         self.languages = language.split("-")
 
-    def tokenize(self, tokenizer: Tokenizer):
+    def tokenize(self, tokenizer):
         def encode(example):
             tokenized_example = {}
             for lg, name in zip(self.languages, ["src", "tgt"]):
-                enc = tokenizer.encode(f"[CLS] {example['translation'][lg]} [SEP]")
-                tokenized_example[name] = enc.ids
+                enc = tokenizer(example["translation"][lg])
+                tokenized_example[name] = enc.input_ids
                 tokenized_example[name + "_mask"] = torch.tensor(enc.attention_mask) == 0
-                tokenized_example[name + "_len"] = len(enc.ids)
+                tokenized_example[name + "_len"] = len(enc.input_ids)
             return tokenized_example
 
         for split in self.dataset.keys():
@@ -89,7 +89,7 @@ class Dataset:
         def pad(example):
             for name in ["src", "tgt"]:
                 pad_len = max_len - len(example[name])
-                example[name] += [self.tokenizer.token_to_id("[PAD]")] * pad_len
+                example[name] += [0] * pad_len
                 example[name + "_mask"] += [True] * pad_len
             return example
 
