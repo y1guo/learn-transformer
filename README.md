@@ -19,11 +19,22 @@ pip install tokenizers
 # install HuggingFace datasets
 pip install datasets
 # install dev tools
-conda install jupyter matplotlib -y
+conda install jupyter matplotlib colorama -y
 ```
 
 ## Dataset
 
 Using [WMT 2014 English-German dataset](https://huggingface.co/datasets/wmt14).
 
-By default, the dataset is downloaded at `~/.cache/huggingface/datasets/`.
+By default, the dataset is downloaded at `~/.cache/huggingface/datasets/`. In the code, I've turned off dataset caching
+to avoid disk explosion :)
+
+## Source Files
+
+-   prototype/prototype.ipynb
+
+    Built Transformer Base using `torch.nn.Transformer` for prototyping.
+
+-   transformer_from_scratch/transformer_from_scratch.ipynb
+
+    Built Transformer from scratch.
