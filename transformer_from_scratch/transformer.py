@@ -97,6 +97,8 @@ class Transformer:
             log(f"Epoch {i+1}/{epochs}", "train.log")
             self.train_epoch(dataloader["train"], loss_fn, optimizer, scheduler)
             self.validate(dataloader["validation"], loss_fn)
+            bleu, _, _ = self.evaluate_bleu(dataloader["validation"])
+            log(f"BLEU score: {bleu.score}", "train.log")
             torch.save(self.model.state_dict(), f"last_train.pth")
         log("Done!", "train.log")
 
