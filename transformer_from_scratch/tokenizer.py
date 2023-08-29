@@ -31,7 +31,7 @@ def get_tokenizer(name: str, language: str, vocab_size: int):
         tokenizer = Tokenizer.from_file(save_file)
         print(f"Loaded tokenizer from {save_file}")
     except:
-        print(f"Creating tokenizer at {save_file}")
+        print(f"Creating tokenizer at {save_file}  This may take several minutes.")
         tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
         trainer = BpeTrainer(
             vocab_size=vocab_size,

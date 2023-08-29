@@ -1,5 +1,7 @@
 import torch, os, gc
+import torch.nn as nn
 from datetime import datetime
+from colorama import Fore
 
 
 NUM_PROC = os.cpu_count()
@@ -70,3 +72,38 @@ def sec2hms(seconds: float) -> str:
     minutes = (seconds % 3600) // 60
     seconds = seconds % 60
     return f"{hours}:{minutes:02}:{seconds:02}"
+
+
+def analyze_params(module: nn.Module):
+    """Print the parameters in the module and it's submodules."""
+    print(f"Total number of parameters: {sum(p.numel() for p in module.parameters())}")
+    for name, param in module.named_parameters():
+        if param.requires_grad:
+            print(f"{Fore.GREEN}{name}{Fore.RESET}")
+            print(f"\t{str(tuple(param.shape)):<20} {str(param.dtype):<13}", end="\t")
+            # get the mean and std of the parameters
+            value = param.detach().cpu().numpy()
+            print(f"param = {value.mean():>12.7f} +/- {value.std():>11.7f}", end="\t")
+            # get the mean and std of the gradients
+            if param.grad is None:
+                print("grad = None")
+            else:
+                grad = param.grad.detach().cpu().numpy()
+                print(f"grad = {grad.mean():>12.7f} +/- {grad.std():>11.7f}")
+
+
+def compare_params(module1: nn.Module, module2: nn.Module):
+    """Compare the parameters in two modules. Look for the root mean squared difference."""
+    assert type(module1) == type(module2), "Modules must be of the same type."
+    for (n1, p1), (n2, p2) in zip(module1.named_parameters(), module2.named_parameters()):
+        assert n1 == n2, "Modules must have the same parameters."
+        assert p1.shape == p2.shape, "Parameters must have the same shape."
+        assert p1.dtype == p2.dtype, "Parameters must have the same dtype."
+        value1 = p1.detach().cpu().numpy()
+        value2 = p2.detach().cpu().numpy()
+        print(f"{Fore.GREEN}{n1}{Fore.RESET}")
+        print(f"{str(tuple(p1.shape)):<20}", end="\t")
+        print(f"param1 = {value1.mean():>12.7f} +/- {value1.std():>11.7f}", end="\t")
+        print(f"param2 = {value2.mean():>12.7f} +/- {value2.std():>11.7f}", end="\t")
+        print(f"diff(rms) = {((value1 - value2) ** 2).mean() ** 0.5:>11.7f}", end="\t")
+        print(f"diff(max) = {abs(value1 - value2).max():>11.7f}")

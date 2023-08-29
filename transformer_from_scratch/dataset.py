@@ -95,6 +95,6 @@ class Dataset:
 
         dataset = dataset.map(pad, num_proc=NUM_PROC)
         # Create DataLoader
-        dataset.set_format(type="torch", columns=["src", "tgt", "src_mask", "tgt_mask"])
+        dataset.set_format(type="torch", columns=["src", "src_mask", "tgt", "tgt_mask"])
         dataloader = DataLoader(cast(TorchDataset, dataset), batch_size=batch_size, shuffle=shuffle)
         return dataloader

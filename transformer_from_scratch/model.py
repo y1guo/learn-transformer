@@ -35,7 +35,7 @@ class PositionalEncoding(nn.Module):
 class InverseEmbedding(nn.Module):
     def __init__(self, embedding: nn.Embedding):
         super().__init__()
-        self.embedding = embedding
+        self.weight = embedding.weight
 
     def forward(self, x: torch.Tensor):
         """
@@ -49,7 +49,7 @@ class InverseEmbedding(nn.Module):
         torch.Tensor
                 (batch_size, seq_len, vocab_size)
         """
-        return x @ self.embedding.weight.data.T
+        return x @ self.weight.data.T
 
 
 class MultiHeadAttention(nn.Module):
@@ -63,7 +63,7 @@ class MultiHeadAttention(nn.Module):
         self.k_linear = nn.Linear(d_model, d_model)
         self.v_linear = nn.Linear(d_model, d_model)
         self.linear = nn.Linear(d_model, d_model)
-        self.casal_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), float("-inf")), diagonal=1).to(DEVICE)
+        self.causal_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), float("-inf")), diagonal=1).to(DEVICE)
 
     def forward(
         self,
@@ -71,7 +71,7 @@ class MultiHeadAttention(nn.Module):
         k: torch.Tensor,
         q_mask: torch.Tensor,
         k_mask: torch.Tensor,
-        causal_mask: bool = False,
+        causal_attention: bool = False,
     ):
         """Note: Treating V = K, and V mask is not needed.
         Parameters
@@ -80,7 +80,7 @@ class MultiHeadAttention(nn.Module):
                 (batch_size, seq_len, d_model)
         q_mask, k_mask
                 (batch_size, seq_len) 0: mask, 1: not mask
-        causal_mask: bool
+        causal_attention: bool
                 whether to use causal attention mask. Default: False
 
         Returns
@@ -89,21 +89,21 @@ class MultiHeadAttention(nn.Module):
                 (batch_size, seq_len, d_model)
         """
         v = k  # v = k but allow different head representations
-        q = self.q_linear(q).reshape(*q.shape[:2], self.nhead, self.d_k).transpose(1, 2)
-        k = self.k_linear(k).reshape(*k.shape[:2], self.nhead, self.d_k).transpose(1, 2)
-        v = self.v_linear(v).reshape(*v.shape[:2], self.nhead, self.d_k).transpose(1, 2)
+        q = self.q_linear(q).contiguous().view(*q.shape[:2], self.nhead, self.d_k).transpose(1, 2)
+        k = self.k_linear(k).contiguous().view(*k.shape[:2], self.nhead, self.d_k).transpose(1, 2)
+        v = self.v_linear(v).contiguous().view(*v.shape[:2], self.nhead, self.d_k).transpose(1, 2)
         # q, k, v: (batch_size, nhead, seq_len, d_k)
         sqrt_d_k = torch.tensor(self.d_k**0.5).to(DEVICE)
         attention = q @ k.mT / sqrt_d_k  # (batch_size, nhead, q_seq_len, k_seq_len)
         # the order of masking is crucial, do not change
-        if causal_mask:
-            attention = attention + self.casal_mask[: attention.shape[-2], : attention.shape[-1]]
+        if causal_attention:
+            attention += self.causal_mask[: attention.shape[-2], : attention.shape[-1]]
         attention = attention.masked_fill(k_mask[:, None, None, :] == 0, float("-inf"))
         attention = torch.softmax(attention, dim=-1)  # (batch_size, nhead, q_seq_len, k_seq_len)
         attention = attention.masked_fill(q_mask[:, None, :, None] == 0, 0)
         out = attention @ v  # (batch_size, nhead, q_seq_len, d_k)
         out = out.transpose(1, 2)  # (batch_size, q_seq_len, nhead, d_k)
-        out = out.reshape(*out.shape[:2], self.d_model)  # (batch_size, q_seq_len, d_model)
+        out = out.contiguous().view(*out.shape[:2], self.d_model)  # (batch_size, q_seq_len, d_model
         out = self.linear(out)  # (batch_size, q_seq_len, d_model)
         return out
 
@@ -214,7 +214,8 @@ class DecoderLayer(nn.Module):
                 (batch_size, seq_len, d_model)
         """
         out = self.add_norm1(
-            tgt, self.multi_head_attention1(tgt, tgt, tgt_key_padding_mask, tgt_key_padding_mask, causal_mask=True)
+            tgt,
+            self.multi_head_attention1(tgt, tgt, tgt_key_padding_mask, tgt_key_padding_mask, causal_attention=True),
         )
         out = self.add_norm2(
             out, self.multi_head_attention2(out, memory, tgt_key_padding_mask, memory_key_padding_mask)
@@ -297,12 +298,7 @@ class TransformerModel(nn.Module):
         dropout: float = 0.1,
     ):
         super().__init__()
-        # hyperparameters
         self.d_model = d_model
-        self.nhead = nhead
-        self.num_encoder_layers = num_encoder_layers
-        self.num_decoder_layers = num_decoder_layers
-        self.dim_feedforward = dim_feedforward
         # embedding layer
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.inverse_embedding = InverseEmbedding(self.embedding)

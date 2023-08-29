@@ -18,6 +18,8 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install tokenizers
 # install HuggingFace datasets
 pip install datasets
+# install sacrebleu for evaluating with BLEU score
+pip install sacrebleu
 # install dev tools
 conda install jupyter matplotlib colorama -y
 ```
@@ -37,4 +39,4 @@ to avoid disk explosion :)
 
 -   transformer_from_scratch/transformer_from_scratch.ipynb
 
-    Built Transformer from scratch.
+    Built Transformer from scratch. Successful de-en translation. BLEU score 7.7
