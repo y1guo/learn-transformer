@@ -107,3 +107,28 @@ def compare_params(module1: nn.Module, module2: nn.Module):
         print(f"param2 = {value2.mean():>12.7f} +/- {value2.std():>11.7f}", end="\t")
         print(f"diff(rms) = {((value1 - value2) ** 2).mean() ** 0.5:>11.7f}", end="\t")
         print(f"diff(max) = {abs(value1 - value2).max():>11.7f}")
+
+
+def truncate_sequence(seq: torch.Tensor, seq_key_padding_mask: torch.Tensor):
+    """Truncate the sequence length to the nearest exponent of 2.
+
+    Parameters
+    ----------
+    seq : torch.Tensor
+        (batch_size, seq_len)
+    seq_key_padding_mask : torch.Tensor
+        (batch_size, seq_len)  0 for padding, 1 for non-padding
+
+    Returns
+    -------
+    seq, seq_key_padding_mask
+        Truncated sequence.
+    """
+    for i in range(seq.size(1)):
+        if seq_key_padding_mask[:, i].sum() == 0:
+            # find the nearest exponent of 2
+            n = 2 ** (i - 1).bit_length()
+            seq = seq[:, :n]
+            seq_key_padding_mask = seq_key_padding_mask[:, :n]
+            break
+    return seq, seq_key_padding_mask

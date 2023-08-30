@@ -3,16 +3,13 @@ from torch import nn
 from utils import DEVICE
 
 
-MAX_SEQ_LEN = 128  # need fix
-
-
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int):
+    def __init__(self, d_model: int, max_seq_len: int):
         super().__init__()
-        pos = torch.arange(MAX_SEQ_LEN)[None, :, None]
+        pos = torch.arange(max_seq_len)[None, :, None]
         idx = torch.arange(0, d_model, 2)[None, None, :]
         wavlen = 10000 ** (idx / d_model)
-        pos_encoding = torch.zeros(1, MAX_SEQ_LEN, d_model)
+        pos_encoding = torch.zeros(1, max_seq_len, d_model)
         pos_encoding[:, :, 0::2] = torch.sin(pos / wavlen)
         pos_encoding[:, :, 1::2] = torch.cos(pos / wavlen)
         self.pos_encoding = pos_encoding.to(DEVICE)
@@ -53,7 +50,7 @@ class InverseEmbedding(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, nhead: int):
+    def __init__(self, d_model: int, nhead: int, max_seq_len: int):
         super().__init__()
         assert d_model % nhead == 0
         self.d_model = d_model
@@ -63,7 +60,7 @@ class MultiHeadAttention(nn.Module):
         self.k_linear = nn.Linear(d_model, d_model)
         self.v_linear = nn.Linear(d_model, d_model)
         self.linear = nn.Linear(d_model, d_model)
-        self.causal_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), float("-inf")), diagonal=1).to(DEVICE)
+        self.causal_mask = torch.triu(torch.full((max_seq_len, max_seq_len), float("-inf")), diagonal=1).to(DEVICE)
 
     def forward(
         self,
@@ -153,9 +150,9 @@ class AddNorm(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float):
+    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float, max_seq_len: int):
         super().__init__()
-        self.multi_head_attention = MultiHeadAttention(d_model, nhead)
+        self.multi_head_attention = MultiHeadAttention(d_model, nhead, max_seq_len)
         self.add_norm1 = AddNorm(d_model, dropout)
         self.feed_forward = FeedForward(d_model, dim_feedforward)
         self.add_norm2 = AddNorm(d_model, dropout)
@@ -180,11 +177,11 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float):
+    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float, max_seq_len: int):
         super().__init__()
-        self.multi_head_attention1 = MultiHeadAttention(d_model, nhead)
+        self.multi_head_attention1 = MultiHeadAttention(d_model, nhead, max_seq_len)
         self.add_norm1 = AddNorm(d_model, dropout)
-        self.multi_head_attention2 = MultiHeadAttention(d_model, nhead)
+        self.multi_head_attention2 = MultiHeadAttention(d_model, nhead, max_seq_len)
         self.add_norm2 = AddNorm(d_model, dropout)
         self.feed_forward = FeedForward(d_model, dim_feedforward)
         self.add_norm3 = AddNorm(d_model, dropout)
@@ -225,10 +222,12 @@ class DecoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, d_model: int, nhead: int, num_layers: int, dim_feedforward: int, dropout: float):
+    def __init__(
+        self, d_model: int, nhead: int, num_layers: int, dim_feedforward: int, dropout: float, max_seq_len: int
+    ):
         super().__init__()
         self.layers = nn.ModuleList(
-            [EncoderLayer(d_model, nhead, dim_feedforward, dropout) for _ in range(num_layers)]
+            [EncoderLayer(d_model, nhead, dim_feedforward, dropout, max_seq_len) for _ in range(num_layers)]
         )
 
     def forward(self, src: torch.Tensor, src_key_padding_mask: torch.Tensor):
@@ -251,10 +250,12 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, d_model: int, nhead: int, num_layers: int, dim_feedforward: int, dropout: float):
+    def __init__(
+        self, d_model: int, nhead: int, num_layers: int, dim_feedforward: int, dropout: float, max_seq_len: int
+    ):
         super().__init__()
         self.layers = nn.ModuleList(
-            [DecoderLayer(d_model, nhead, dim_feedforward, dropout) for _ in range(num_layers)]
+            [DecoderLayer(d_model, nhead, dim_feedforward, dropout, max_seq_len) for _ in range(num_layers)]
         )
 
     def forward(
@@ -296,20 +297,22 @@ class TransformerModel(nn.Module):
         num_decoder_layers: int = 6,
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
+        max_seq_len: int = 128,
     ):
         super().__init__()
         self.d_model = d_model
+        self.max_seq_len = max_seq_len
         # embedding layer
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.inverse_embedding = InverseEmbedding(self.embedding)
         # self.inverse_embedding = nn.Linear(d_model, vocab_size)
         # positional encoding layer
-        self.pos_enc = PositionalEncoding(d_model)
+        self.pos_enc = PositionalEncoding(d_model, max_seq_len)
         # dropout layer
         self.dropout = nn.Dropout(dropout)
         # transformer layers
-        self.encoder = Encoder(d_model, nhead, num_encoder_layers, dim_feedforward, dropout)
-        self.decoder = Decoder(d_model, nhead, num_decoder_layers, dim_feedforward, dropout)
+        self.encoder = Encoder(d_model, nhead, num_encoder_layers, dim_feedforward, dropout, max_seq_len)
+        self.decoder = Decoder(d_model, nhead, num_decoder_layers, dim_feedforward, dropout, max_seq_len)
 
     def forward(
         self,

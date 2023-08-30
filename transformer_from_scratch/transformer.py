@@ -1,6 +1,6 @@
 import torch, time
 from tokenizers import Tokenizer
-from utils import DEVICE, log, sec2hms
+from utils import DEVICE, log, sec2hms, truncate_sequence, free_memory
 from colorama import Fore
 from model import TransformerModel
 from sacrebleu.metrics.bleu import BLEU
@@ -8,9 +8,6 @@ from tqdm import tqdm
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from torch.utils.data import DataLoader, Dataset as TorchDataset
 from typing import cast
-
-
-MAX_SEQ_LEN = 128  # need fix
 
 
 class Transformer:
@@ -24,60 +21,100 @@ class Transformer:
         self.tokenizer.enable_padding(
             pad_id=self.tokenizer.token_to_id("[PAD]"),
             pad_token="[PAD]",
-            length=MAX_SEQ_LEN,
+            length=model.max_seq_len,
         )
-        self.tokenizer.enable_truncation(max_length=MAX_SEQ_LEN)
+        self.tokenizer.enable_truncation(max_length=model.max_seq_len)
 
-    def train_epoch(self, dataloader, loss_fn, optimizer, scheduler):
-        size = len(dataloader.dataset)
+    def train(
+        self,
+        dataloader: DataLoader,
+        loss_fn: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler.LambdaLR,
+        update_interval: int = 100,
+        log_file: str | None = None,
+    ):
+        """Train the model for one epoch.
+
+        Parameters
+        ----------
+        dataloader : DataLoader
+                DataLoader for training data.
+        loss_fn : torch.nn.Module
+                Loss function. e.g. CrossEntropyLoss
+        optimizer : torch.optim.Optimizer
+                Optimizer. e.g. Adam
+        scheduler : torch.optim.lr_scheduler.LambdaLR
+                Learning rate scheduler. e.g. LambdaLR
+        update_interval : int, optional
+                Number of batches between logging. Default: 100
+        log_file : str, optional
+                Path to log file. Default: None
+        """
+        size = len(dataloader.dataset)  # type: ignore
         self.model.train()
         start_time = time.perf_counter()
+        acc_loss, acc_correct, acc_examples, acc_tokens = 0, 0, 0, 0
+        src_len, tgt_len = 0, 0
         for i_batch, batch in enumerate(dataloader):
             x, x_mask, y, y_mask = batch.values()
-            x, x_mask, y, y_mask = (
-                x.to(DEVICE),
-                x_mask.to(DEVICE),
-                y.to(DEVICE),
-                y_mask.to(DEVICE),
-            )
+            x, x_mask = truncate_sequence(x.to(DEVICE), x_mask.to(DEVICE))
+            y, y_mask = truncate_sequence(y.to(DEVICE), y_mask.to(DEVICE))
+            if x.size(1) != src_len or y.size(1) != tgt_len:
+                src_len, tgt_len = x.size(1), y.size(1)
+                free_memory()
 
-            # Compute prediction error
+            # compute prediction error
             optimizer.zero_grad()
             pred = self.model(x, x_mask, y, y_mask)[:, :-1, :]  # (batch_size, seq_len, vocab_size)
             label = y[:, 1:]  # (batch_size, seq_len)
             label_mask = y_mask[:, 1:] == 1  # (batch_size, seq_len)
             loss = loss_fn(pred[label_mask], label[label_mask])
 
-            # Optimization
+            # optimization
             loss.backward()
             optimizer.step()
             scheduler.step()
 
-            if i_batch % 100 == 0:
-                loss, current = loss.item(), (i_batch + 1) * len(x)
-                correct = (pred.argmax(-1) == label)[label_mask].float().sum().item() / label[label_mask].numel()
-                elapsed_time = time.perf_counter() - start_time
-                remaining_time = elapsed_time * (size - current) / current
-                log(
-                    f"Accuracy: {100*correct:>4.1f}%, Avg loss: {loss:>10f}, Lr: {scheduler.get_last_lr()[0]:>10f}"
-                    f"  [{current:>{len(str(size))}d}/{size}]"
-                    f"  [{sec2hms(elapsed_time)} < {sec2hms(remaining_time)}]",
-                    "train.log",
-                )
+            # metrics
+            acc_loss += loss.item() * label.shape[0]
+            acc_correct += (pred.argmax(-1) == label)[label_mask].float().sum().item()
+            acc_examples += label.shape[0]
+            acc_tokens += label_mask.sum().item()
 
-    def validate(self, dataloader, loss_fn):
+            # log
+            if (i_batch + 1) % update_interval == 0 or i_batch == len(dataloader) - 1:
+                elapsed_time = time.perf_counter() - start_time
+                remaining_time = elapsed_time * (size - acc_examples) / acc_examples
+                correct = 100 * acc_correct / acc_tokens
+                loss = acc_loss / acc_examples
+                log(
+                    f"Accuracy: {correct:>4.1f}%, Avg loss: {loss:>10f}, Lr: {scheduler.get_last_lr()[0]:>10f}"
+                    f"  [{acc_examples:>{len(str(size))}d}/{size}]"
+                    f"  [{sec2hms(elapsed_time)} < {sec2hms(remaining_time)}]",
+                    log_file,
+                )
+        free_memory()
+
+    def validate(self, dataloader, loss_fn, log_file: str | None = None):
+        """Validate the model on the validation set.
+
+        Parameters
+        ----------
+        dataloader : DataLoader
+                DataLoader for validation data.
+        loss_fn : torch.nn.Module
+                Loss function. e.g. CrossEntropyLoss
+        log_file : str, optional
+                Path to log file. Default: None
+        """
         num_batches = len(dataloader)
         self.model.eval()
         validation_loss, correct, total = 0, 0, 0
         with torch.no_grad():
             for batch in dataloader:
                 x, x_mask, y, y_mask = batch.values()
-                x, x_mask, y, y_mask = (
-                    x.to(DEVICE),
-                    x_mask.to(DEVICE),
-                    y.to(DEVICE),
-                    y_mask.to(DEVICE),
-                )
+                x, x_mask, y, y_mask = x.to(DEVICE), x_mask.to(DEVICE), y.to(DEVICE), y_mask.to(DEVICE)
                 label_mask = y_mask[:, 1:] == 1
                 pred = self.model(x, x_mask, y, y_mask)[:, :-1, :][label_mask]
                 label = y[:, 1:][label_mask]
@@ -87,28 +124,29 @@ class Transformer:
         validation_loss /= num_batches
         correct /= total
         log(
-            f"Validation Error: \n Accuracy: {100*correct:>0.1f}%, Avg loss: {validation_loss:>8f} \n",
-            "train.log",
+            f"Validation: \nAccuracy: {100*correct:>0.1f}%, Avg loss: {validation_loss:>8f}",
+            log_file,
         )
-
-    def train(self, dataloader, loss_fn, optimizer, scheduler, epochs=1):
-        for i in range(epochs):
-            log("-------------------------------", "train.log")
-            log(f"Epoch {i+1}/{epochs}", "train.log")
-            self.train_epoch(dataloader["train"], loss_fn, optimizer, scheduler)
-            self.validate(dataloader["validation"], loss_fn)
-            bleu, _, _ = self.evaluate_bleu(dataloader["validation"])
-            log(f"BLEU score: {bleu.score}", "train.log")
-            torch.save(self.model.state_dict(), f"last_train.pth")
-        log("Done!", "train.log")
+        free_memory()
 
     def predict(self, source: str, target: str):
+        """Run the "predict the next token" evaluation. This can be thought to be a guided translation task.
+
+        Parameters
+        ----------
+        source : str
+            Source sentence.
+        target : str
+            Reference translation.
+        """
         enc = self.tokenizer.encode(f"[CLS] {source} [SEP]")
         src = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
         src_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE)  # (batch_size, seq_len)
+        src, src_mask = truncate_sequence(src, src_mask)
         enc = self.tokenizer.encode(f"[CLS] {target} [SEP]")
         tgt = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
         tgt_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE)  # (batch_size, seq_len)
+        tgt, tgt_mask = truncate_sequence(tgt, tgt_mask)
         self.model.eval()
         with torch.no_grad():
             pred = self.model(src, src_mask, tgt, tgt_mask)  # (batch_size, seq_len, vocab_size)
@@ -127,22 +165,44 @@ class Transformer:
                 if history:
                     history += " "
                 print(f"{history}{color}{predict}{Fore.RESET}")
+        free_memory()
 
-    def translate(self, source: str):
+    def translate(self, source: str, realtime: bool = False):
+        """Translate a sentence.
+
+        Parameters
+        ----------
+        source : str
+            Source sentence.
+
+        Returns
+        -------
+        str
+            Translated sentence.
+        """
+        max_seq_len = self.model.max_seq_len
         enc = self.tokenizer.encode(f"[CLS] {source} [SEP]")
         src = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
         src_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        tgt = torch.full((1, MAX_SEQ_LEN), self.tokenizer.token_to_id("[CLS]")).to(DEVICE)  # (batch_size, seq_len)
-        tgt_mask = torch.triu(torch.full((MAX_SEQ_LEN, MAX_SEQ_LEN), 1)).T.to(DEVICE)
+        tgt = torch.full((1, max_seq_len), self.tokenizer.token_to_id("[CLS]")).to(DEVICE)  # (batch_size, seq_len)
+        tgt_mask = torch.zeros((1, max_seq_len)).to(DEVICE)  # (batch_size, seq_len)
         self.model.eval()
         with torch.no_grad():
-            for i in range(MAX_SEQ_LEN - 1):
-                pred = self.model(src, src_mask, tgt, tgt_mask[i : i + 1, :])  # (batch_size, seq_len, vocab_size)
+            src, src_mask = truncate_sequence(src, src_mask)
+            for i in range(max_seq_len - 1):
+                tgt_mask[:, i] = 1
+                pred = self.model(src, src_mask, tgt, tgt_mask)  # (batch_size, seq_len, vocab_size)
                 pred_token = pred.argmax(-1)[0, i]
                 tgt[0, i + 1] = pred_token
+                if realtime:
+                    print(self.tokenizer.decode([pred_token]), end=" ")
                 if pred_token == self.tokenizer.token_to_id("[SEP]"):
                     break
-        return self.tokenizer.decode(tgt[0].tolist())
+            if realtime:
+                print()
+        translation = cast(str, self.tokenizer.decode(tgt[0].tolist()))
+        free_memory()
+        return translation
 
     def evaluate_bleu(self, dataloader: DataLoader):
         """Evaluate BLEU score on a dataset.
@@ -160,6 +220,7 @@ class Transformer:
         hypotheses : list[str]
             List of predicted translations.
         """
+        max_seq_len = self.model.max_seq_len
         self.model.eval()
         with torch.no_grad():
             references, hypotheses = [], []
@@ -168,14 +229,13 @@ class Transformer:
                 x, x_mask = x.to(DEVICE), x_mask.to(DEVICE)
                 batch_size = len(x)
                 ref_list = [list(label[mask]) for label, mask in zip(y, y_mask == 1)]
-                tgt = torch.full((batch_size, MAX_SEQ_LEN), self.tokenizer.token_to_id("[CLS]")).to(DEVICE)
+                tgt = torch.full((batch_size, max_seq_len), self.tokenizer.token_to_id("[CLS]")).to(DEVICE)
+                tgt_mask = torch.zeros((batch_size, max_seq_len)).to(DEVICE)
                 tgt_list = [[] for _ in range(batch_size)]
                 finished = [False] * batch_size
-                for i in range(MAX_SEQ_LEN - 1):
+                for i in range(max_seq_len - 1):
                     # tgt_mask is a batchsize x seq_len tensor where the first i tokens are 1 and the rest are 0
-                    tgt_mask = (
-                        torch.tensor([1] * (i + 1) + [0] * (MAX_SEQ_LEN - i - 1)).expand(batch_size, -1).to(DEVICE)
-                    )
+                    tgt_mask[:, i] = 1
                     pred = self.model(x, x_mask, tgt, tgt_mask)
                     pred_tokens = pred.argmax(-1)[:, i]
                     for j in range(batch_size):
@@ -189,6 +249,7 @@ class Transformer:
                 references.extend([self.tokenizer.decode(ref_list[i]) for i in range(batch_size)])
                 hypotheses.extend([self.tokenizer.decode(tgt_list[i]) for i in range(batch_size)])
         result = BLEU().corpus_score(hypotheses, [references])
+        free_memory()
         return result, references, hypotheses
 
     # def evaluate_bleu(self, dataset: ArrowDataset, batch_size: int = 32):

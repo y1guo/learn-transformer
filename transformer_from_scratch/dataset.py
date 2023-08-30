@@ -70,7 +70,7 @@ class Dataset:
         batch_size : int, optional
             Batch size. Default: 1.
         shuffle : bool, optional
-            Whether to shuffle the data. Default: False.
+            Whether to shuffle the data. If False, data would come in order of sequence length. Default: False.
         min_len : int, optional
             Minimum length of the sequences (inclusive). Default: 1.
         max_len : int, optional
@@ -84,6 +84,9 @@ class Dataset:
 
         # Filter sequences by length
         dataset = self.dataset[split].filter(lambda e: min_len <= max(len(e["src"]), len(e["tgt"])) <= max_len)
+
+        # Sort sequences by length
+        dataset = dataset.sort(("src_len", "tgt_len"))
 
         # Pad sequences
         def pad(example):

@@ -1,0 +1,24 @@
+{
+    "dataset": "wmt14",
+    "language": "de-en",
+    "vocab_size": 37000,
+    "batch_size": 64,
+    "max_seq_len": 128,
+    "model": "base",
+    "models": {
+        "base": {
+            "dim_model": 512,
+            "num_heads": 8,
+            "num_encoder_layers": 6,
+            "num_decoder_layers": 6,
+            "dim_feedforward": 2048,
+            "dropout_rate": 0.1
+        }
+    },
+    "beta1": 0.9,
+    "beta2": 0.98,
+    "epsilon": 1e-9,
+    "warmup_steps": 4000,
+    "label_smoothing": 0.1,
+    "num_log_per_epoch": 10
+}
