@@ -12,46 +12,28 @@ I stopped at the 35-th epoch to save energy, with a final BLEU score of 17.4 on 
 
 The training took 4 days on an RTX 4090, basically 3 hours per epoch. While Vaswani et al. got much better results with only 12 hours training on four P100, which I believe had approximately the same computing power as an RTX 4090. Appearently their model learnt way faster than mine.
 
-To get a sense of the model's translation power, here're some random examples from the test set:
+To get a sense of the model's translation power, here're some random examples from the test set (Each example is in the order of German, English, Model translated English):
 
 1.
-    Source: 
-    
-        „In diesem Fall habe ich Zoomlion geschädigt ebenso wie die gesamte Nachrichtenbranche und ihre Fähigkeit, das Vertrauen der Öffentlichkeit zu gewinnen“, erklärte er gegenüber dem staatlichen Nachrichtensender CCTV.
+    „In diesem Fall habe ich Zoomlion geschädigt ebenso wie die gesamte Nachrichtenbranche und ihre Fähigkeit, das Vertrauen der Öffentlichkeit zu gewinnen“, erklärte er gegenüber dem staatlichen Nachrichtensender CCTV.
 
-    Target: 
-    
-        "In this case I've caused damages to Zoomlion and also the whole news media industry and its ability to earn the public's trust," he told state broadcaster CCTV.
+    "In this case I've caused damages to Zoomlion and also the whole news media industry and its ability to earn the public's trust," he told state broadcaster CCTV.
 
-    Prediction: 
-    
-        “ In this case , I have damaged CC TV as well as the entire news industry and its ability to gain public confidence ,” he explained to the CC zoom ing station .
+    “ In this case , I have damaged CC TV as well as the entire news industry and its ability to gain public confidence ,” he explained to the CC zoom ing station .
 
 1. 
-    Source: 
-    
-        Man habe, so Airbus, Untersuchungen durchgeführt, die belegten, dass ein zusätzliches Zoll (2,54 cm) pro Sitz die Schlafqualität um 53 Prozent steigere.
+    Man habe, so Airbus, Untersuchungen durchgeführt, die belegten, dass ein zusätzliches Zoll (2,54 cm) pro Sitz die Schlafqualität um 53 Prozent steigere.
 
-    Target: 
-    
-        Airbus says it has commissioned research suggesting an extra inch in seat width improves sleep quality by 53 per cent.
+    Airbus says it has commissioned research suggesting an extra inch in seat width improves sleep quality by 53 per cent.
 
-    Prediction: 
-    
-        The investigations carried out by Airbus have shown that the quality of sleeping ( 53 . 54 cm per seat ) was reduced by 2 percent .
+    The investigations carried out by Airbus have shown that the quality of sleeping ( 53 . 54 cm per seat ) was reduced by 2 percent .
 
 1.
-    Source: 
-    
-        Neben der uns geläufigen Materie, aus der Sterne, Planeten und Lebewesen wie wir bestehen, gibt es Dunkle Materie, deren Schwerkraft Galaxien und Galaxienhaufen zusammenhält, und Dunkle Energie, durch deren Wirken sich die Expansion des Weltalls beschleunigt.
+    Neben der uns geläufigen Materie, aus der Sterne, Planeten und Lebewesen wie wir bestehen, gibt es Dunkle Materie, deren Schwerkraft Galaxien und Galaxienhaufen zusammenhält, und Dunkle Energie, durch deren Wirken sich die Expansion des Weltalls beschleunigt.
 
-    Target: 
-    
-        Alongside the materials familiar to us, from which stars, planets and life forms such as ourselves are composed, there exists dark matter, the gravitational force of which holds galaxies and galaxy clusters together, and dark energy, the effects of which accelerate the expansion of the universe.
+    Alongside the materials familiar to us, from which stars, planets and life forms such as ourselves are composed, there exists dark matter, the gravitational force of which holds galaxies and galaxy clusters together, and dark energy, the effects of which accelerate the expansion of the universe.
 
-    Prediction: 
-    
-        Besides the dark matter , stars , galax ies , galax ies and how we dress up together , there are galax ies , dark galax ies , and their energy is accelerated by their expansion , and by the expansion of the planet , the matter is made up of .
+    Besides the dark matter , stars , galax ies , galax ies and how we dress up together , there are galax ies , dark galax ies , and their energy is accelerated by their expansion , and by the expansion of the planet , the matter is made up of .
 
 
 
