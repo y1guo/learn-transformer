@@ -28,18 +28,18 @@ with open("config.json") as f:
     WARMUP_STEPS = config["warmup_steps"]
     LABEL_SMOOTHING = config["label_smoothing"]
     NUM_LOG_PER_EPOCH = config["num_log_per_epoch"]
-print("Number of CPU: ", NUM_PROC, ",\tDevice: ", DEVICE)
+print("Number of CPU: ", NUM_PROC, "\tDevice: ", DEVICE)
 
 # get tokenizer
 tokenizer = get_tokenizer(name=DATASET, language=LANGUAGE, vocab_size=VOCAB_SIZE)
 
 # get dataset
 print("Loading dataset...")
-dataset = Dataset(name=DATASET, language=LANGUAGE, percentage=1)
+dataset = Dataset(name=DATASET, language=LANGUAGE)
 dataset.tokenize(tokenizer)
 dataloader = {}
 for split in ["train", "validation"]:
-    dataloader[split] = dataset.get_dataloader(split=split, batch_size=BATCH_SIZE, shuffle=False, max_len=MAX_SEQ_LEN)
+    dataloader[split] = dataset.get_dataloader(split=split, batch_size=BATCH_SIZE, shuffle=True, max_len=MAX_SEQ_LEN)
 
 # create model
 model = TransformerModel(
@@ -83,7 +83,7 @@ while True:
     log("-------------------------------", log_file)
     log(f"Epoch {epoch}", log_file)
     transformer.train(dataloader["train"], loss_fn, optimizer, scheduler, update_interval, log_file)
-    transformer.validate(dataloader["validation"], loss_fn)
+    transformer.validate(dataloader["validation"], loss_fn, log_file)
     bleu, _, _ = transformer.evaluate_bleu(dataloader["validation"])
     log(f"BLEU score: {bleu.score}", log_file)
     transformer.save(f"checkpoints/{prefix}_{epoch:02d}.pth")

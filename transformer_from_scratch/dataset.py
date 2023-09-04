@@ -4,7 +4,7 @@ from datasets import load_dataset, disable_caching
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from tokenizers import Tokenizer
 from typing import cast
-from utils import NUM_PROC
+from utils import NUM_PROC, round_power_two
 
 
 class Dataset:
@@ -47,6 +47,7 @@ class Dataset:
                 tokenized_example[name] = enc.ids
                 tokenized_example[name + "_mask"] = enc.attention_mask
                 tokenized_example[name + "_len"] = len(enc.ids)
+            tokenized_example["seq_len"] = max(tokenized_example["src_len"], tokenized_example["tgt_len"])
             return tokenized_example
 
         for split in self.dataset.keys():
@@ -83,10 +84,12 @@ class Dataset:
         """
 
         # Filter sequences by length
-        dataset = self.dataset[split].filter(lambda e: min_len <= max(len(e["src"]), len(e["tgt"])) <= max_len)
+        dataset = self.dataset[split].filter(lambda e: min_len <= e["seq_len"] <= max_len)
 
         # Sort sequences by length
-        dataset = dataset.sort(("src_len", "tgt_len"))
+        # Note that if only sort with one column, e.g. seq_len, the sorting would be extremely slow!
+        # We don't rely on the ordering in the second column but it speeds things up greatly.
+        dataset = dataset.sort(("seq_len", "tgt_len"), reverse=(True, True))
 
         # Pad sequences
         def pad(example):

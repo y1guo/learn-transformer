@@ -109,26 +109,57 @@ def compare_params(module1: nn.Module, module2: nn.Module):
         print(f"diff(max) = {abs(value1 - value2).max():>11.7f}")
 
 
-def truncate_sequence(seq: torch.Tensor, seq_key_padding_mask: torch.Tensor):
+def round_power_two(x: int) -> int:
+    """Round (ceiling) a number to the nearest power of 2.
+
+    Parameters
+    ----------
+    x : int
+        Number to round.
+
+    Returns
+    -------
+    int
+        Rounded power of 2.
+    """
+    return 2 ** (x - 1).bit_length()
+
+
+def truncate_sequence(
+    src: torch.Tensor,
+    src_key_padding_mask: torch.Tensor,
+    tgt: torch.Tensor | None = None,
+    tgt_key_padding_mask: torch.Tensor | None = None,
+):
     """Truncate the sequence length to the nearest exponent of 2.
 
     Parameters
     ----------
-    seq : torch.Tensor
+    src : torch.Tensor
         (batch_size, seq_len)
-    seq_key_padding_mask : torch.Tensor
+    src_key_padding_mask : torch.Tensor
+        (batch_size, seq_len)  0 for padding, 1 for non-padding
+    tgt : torch.Tensor, optional
+        (batch_size, seq_len)
+    tgt_key_padding_mask : torch.Tensor, optional
         (batch_size, seq_len)  0 for padding, 1 for non-padding
 
     Returns
     -------
-    seq, seq_key_padding_mask
-        Truncated sequence.
+    src, src_key_padding_mask, tgt, tgt_key_padding_mask
+        Truncated sequences. The length is determined by the longest sequence in the batch in both src and tgt.
     """
-    for i in range(seq.size(1)):
-        if seq_key_padding_mask[:, i].sum() == 0:
-            # find the nearest exponent of 2
-            n = 2 ** (i - 1).bit_length()
-            seq = seq[:, :n]
-            seq_key_padding_mask = seq_key_padding_mask[:, :n]
+    if tgt is None or tgt_key_padding_mask is None:
+        tgt = torch.zeros_like(src)
+        tgt_key_padding_mask = torch.zeros_like(src_key_padding_mask)
+    src_len, tgt_len = src.size(1), tgt.size(1)
+    for i in range(src.size(1)):
+        if src_key_padding_mask[:, i].sum() == 0:
+            src_len = i
             break
-    return seq, seq_key_padding_mask
+    for i in range(tgt.size(1)):
+        if tgt_key_padding_mask[:, i].sum() == 0:
+            tgt_len = i
+            break
+    seq_len = round_power_two(max(src_len, tgt_len, 16))
+    return src[:, :seq_len], src_key_padding_mask[:, :seq_len], tgt[:, :seq_len], tgt_key_padding_mask[:, :seq_len]

@@ -58,11 +58,12 @@ class Transformer:
         src_len, tgt_len = 0, 0
         for i_batch, batch in enumerate(dataloader):
             x, x_mask, y, y_mask = batch.values()
-            x, x_mask = truncate_sequence(x.to(DEVICE), x_mask.to(DEVICE))
-            y, y_mask = truncate_sequence(y.to(DEVICE), y_mask.to(DEVICE))
-            if x.size(1) != src_len or y.size(1) != tgt_len:
-                src_len, tgt_len = x.size(1), y.size(1)
-                free_memory()
+            x, x_mask, y, y_mask = x.to(DEVICE), x_mask.to(DEVICE), y.to(DEVICE), y_mask.to(DEVICE)
+            # x, x_mask, y, y_mask = truncate_sequence(x.to(DEVICE), x_mask.to(DEVICE), y.to(DEVICE), y_mask.to(DEVICE))
+            # if x.size(1) != src_len or y.size(1) != tgt_len:
+            #     src_len, tgt_len = x.size(1), y.size(1)
+            #     print(f"sequence length updated: src={src_len}, tgt={tgt_len}")
+            #     free_memory()
 
             # compute prediction error
             optimizer.zero_grad()
@@ -127,7 +128,7 @@ class Transformer:
             f"Validation: \nAccuracy: {100*correct:>0.1f}%, Avg loss: {validation_loss:>8f}",
             log_file,
         )
-        free_memory()
+        # free_memory()
 
     def predict(self, source: str, target: str):
         """Run the "predict the next token" evaluation. This can be thought to be a guided translation task.
@@ -142,11 +143,10 @@ class Transformer:
         enc = self.tokenizer.encode(f"[CLS] {source} [SEP]")
         src = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
         src_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        src, src_mask = truncate_sequence(src, src_mask)
         enc = self.tokenizer.encode(f"[CLS] {target} [SEP]")
         tgt = torch.tensor(enc.ids)[None, :].to(DEVICE)  # (batch_size, seq_len)
         tgt_mask = torch.tensor(enc.attention_mask)[None, :].to(DEVICE)  # (batch_size, seq_len)
-        tgt, tgt_mask = truncate_sequence(tgt, tgt_mask)
+        src, src_mask, tgt, tgt_mask = truncate_sequence(src, src_mask, tgt, tgt_mask)
         self.model.eval()
         with torch.no_grad():
             pred = self.model(src, src_mask, tgt, tgt_mask)  # (batch_size, seq_len, vocab_size)
@@ -188,7 +188,7 @@ class Transformer:
         tgt_mask = torch.zeros((1, max_seq_len)).to(DEVICE)  # (batch_size, seq_len)
         self.model.eval()
         with torch.no_grad():
-            src, src_mask = truncate_sequence(src, src_mask)
+            src, src_mask, _, _ = truncate_sequence(src, src_mask)
             for i in range(max_seq_len - 1):
                 tgt_mask[:, i] = 1
                 pred = self.model(src, src_mask, tgt, tgt_mask)  # (batch_size, seq_len, vocab_size)
