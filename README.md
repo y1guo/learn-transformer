@@ -8,6 +8,8 @@ Here's the training history of the transformer I implemented and trained on the 
 
 ![](transformer_from_scratch/base_wmt14_de-en.png)
 
+In the figure above, I showed the average cross entropy loss per example, the learning rate damped according to the formula in the paper (might differ because batch size is not the same), the accuracy of predicting the next token given all previous tokens from the target (label) and all the source tokens (that it translates from), and the BLEU score on the validation set evaluated with the `sacrebleu` package.
+
 I stopped at the 35-th epoch to save energy, with a final BLEU score of 17.4 on the validation set. Compared to the number BLEU = 25.8 in the paper, there's a long way to go. But we can also find that my training is far from finished as there's no sign of plateau or overfitting yet.
 
 The training took 4 days on an RTX 4090, basically 3 hours per epoch. While Vaswani et al. got much better results with only 12 hours training on four P100, which I believe had approximately the same computing power as an RTX 4090. Appearently their model learnt way faster than mine.
@@ -125,3 +127,7 @@ conda install jupyter matplotlib colorama -y
 -   Match examples
 
     Concatenating short examples into long ones helps reduce wasteful paddings, thus speed up training. It could also affect the quality of the learning (just a conjesture, not sure positive effects or negative).
+
+-   Learning rate
+
+    Could try tweaking the learning rate, since my implementation had different batch size than the paper. My training examples are also less dense in terms of information density.
