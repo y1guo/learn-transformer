@@ -6,9 +6,7 @@ Reproduce the Transformer Model following ["Attention is All You Need" by Vaswan
 
 Here's the training history of the transformer I implemented and trained on the WMT14 German-English translation task.
 
-<p align="center">
-    <img src="transformer_from_scratch/base_wmt14_de-en.png" width="480">
-</p>
+![](transformer_from_scratch/base_wmt14_de-en.png)
 
 I stopped at the 35-th epoch to save energy, with a final BLEU score of 17.4 on the validation set. Compared to the number BLEU = 25.8 in the paper, there's a long way to go. But we can also find that my training is far from finished as there's no sign of plateau or overfitting yet.
 
