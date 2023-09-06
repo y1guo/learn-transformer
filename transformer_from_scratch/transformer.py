@@ -90,7 +90,7 @@ class Transformer:
                 correct = 100 * acc_correct / acc_tokens
                 loss = acc_loss / acc_examples
                 log(
-                    f"Accuracy: {correct:>4.1f}%, Avg loss: {loss:>10f}, Lr: {scheduler.get_last_lr()[0]:>10f}"
+                    f"Accuracy: {correct:>4.1f}%, Avg loss: {loss:>10f}, Lr: {scheduler.get_last_lr()[0]:>10.7f}"
                     f"  [{acc_examples:>{len(str(size))}d}/{size}]"
                     f"  [{sec2hms(elapsed_time)} < {sec2hms(remaining_time)}]",
                     log_file,

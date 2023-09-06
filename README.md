@@ -131,3 +131,7 @@ conda install jupyter matplotlib colorama -y
 -   Learning rate
 
     Could try tweaking the learning rate, since my implementation had different batch size than the paper. My training examples are also less dense in terms of information density.
+
+-   Beyong Attention is All You Need
+
+    Recent architectures such as GPT or Llama are similar to Transformers in Attention is All You Need but with different activation functions such as SiLU, GELU, and they add more layer normalization layers as well.
