@@ -134,4 +134,4 @@ conda install jupyter matplotlib colorama -y
 
 -   Beyong Attention is All You Need
 
-    Recent architectures such as GPT or Llama are similar to Transformers in Attention is All You Need but with different activation functions such as SiLU, GELU, and they add more layer normalization layers as well.
+    Recent architectures such as GPT or Llama are similar to Transformers in Attention is All You Need but with different activation functions such as SiLU, GELU, and they add more layer normalization layers as well. An improved version of the Adam optimizer, AdamW, is also said to get results that generalize better than Adam.
